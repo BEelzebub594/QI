@@ -1,0 +1,288 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container">
+    <!-- 隐藏的数据区域，用于JS读取 -->
+    <div id="stock-data" 
+         data-stock='{"symbol":"{{ stock_info.symbol }}", 
+                     "name":"{{ stock_info.name }}",
+                     "dates":[{% for data in daily_data %}"{{ data.trade_date }}"{% if not loop.last %},{% endif %}{% endfor %}],
+                     "prices":[{% for data in daily_data %}{{ data.close|default(0) }}{% if not loop.last %},{% endif %}{% endfor %}],
+                     "volumes":[{% for data in daily_data %}{{ data.vol|default(0) }}{% if not loop.last %},{% endif %}{% endfor %}]
+                    }' 
+         style="display:none;"></div>
+    
+    <div class="card shadow-sm my-4">
+        <div class="card-header{% if stock_info.change_pct > 0 %} bg-danger text-white{% elif stock_info.change_pct < 0 %} bg-success text-white{% else %} bg-primary text-white{% endif %}">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2 class="mb-0">{{ stock_info.name }} <small class="fs-5 text-white-50">{{ stock_info.symbol }}</small></h2>
+                <div>
+                    <h3 class="mb-0">
+                        {{ stock_info.current_price }}
+                        <small class="fs-5 {% if stock_info.change_pct > 0 %}text-white{% elif stock_info.change_pct < 0 %}text-white{% endif %}">
+                            {{ stock_info.change_amount }} ({{ stock_info.change_pct }}%)
+                        </small>
+                    </h3>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card mb-4 shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="card-title mb-0">基本信息</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-striped">
+                        <tr>
+                            <th>股票代码</th>
+                            <td>{{ stock_info.symbol }}</td>
+                        </tr>
+                        <tr>
+                            <th>股票名称</th>
+                            <td>{{ stock_info.name }}</td>
+                        </tr>
+                        <tr>
+                            <th>地区</th>
+                            <td>{{ stock_info.area }}</td>
+                        </tr>
+                        <tr>
+                            <th>行业</th>
+                            <td>{{ stock_info.industry }}</td>
+                        </tr>
+                        <tr>
+                            <th>最新价</th>
+                            <td>{{ stock_info.current_price }}</td>
+                        </tr>
+                        <tr>
+                            <th>涨跌幅</th>
+                            <td class="{% if stock_info.change_pct > 0 %}text-danger{% elif stock_info.change_pct < 0 %}text-success{% endif %}">
+                                {{ stock_info.change_pct }}%
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>成交量</th>
+                            <td>{{ (stock_info.volume/10000)|round(2) }}万</td>
+                        </tr>
+                        <tr>
+                            <th>换手率</th>
+                            <td>{{ stock_info.turnover|round(2) }}%</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            
+            <div class="card mb-4 shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="card-title mb-0">量化评分</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span>综合评分</span>
+                            <span class="badge {% if stock_info.score >= 70 %}bg-success{% elif stock_info.score >= 50 %}bg-warning{% else %}bg-danger{% endif %} fs-5">{{ stock_info.score }}</span>
+                        </div>
+                        <div class="progress mt-2" style="height: 15px;">
+                            <div class="progress-bar {% if stock_info.score >= 70 %}bg-success{% elif stock_info.score >= 50 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                 role="progressbar" 
+                                 style="width: {{ stock_info.score }}%" 
+                                 aria-valuenow="{{ stock_info.score }}" 
+                                 aria-valuemin="0" 
+                                 aria-valuemax="100"></div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between align-items-center mt-3">
+                            <span>投资建议</span>
+                            <span class="badge {% if stock_info.recommendation == '强烈推荐买入' or stock_info.recommendation == '建议买入' %}bg-danger{% elif stock_info.recommendation == '建议卖出' or stock_info.recommendation == '建议减持' %}bg-success{% else %}bg-dark{% endif %} fs-5">
+                                {{ stock_info.recommendation }}
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div class="table-responsive">
+                        <table class="table table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>指标</th>
+                                    <th>结果</th>
+                                    <th>信号</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>趋势</td>
+                                    <td>{{ stock_info.trend }}</td>
+                                    <td>
+                                        <span class="badge {% if stock_info.trend == '上升' %}bg-danger{% elif stock_info.trend == '下降' %}bg-success{% else %}bg-secondary{% endif %}">
+                                            {{ '看涨' if stock_info.trend == '上升' else '看跌' if stock_info.trend == '下降' else '中性' }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>RSI</td>
+                                    <td>{{ stock_info.rsi|round(2) }}</td>
+                                    <td>
+                                        <span class="badge {% if stock_info.rsi_signal == '超买' %}bg-danger{% elif stock_info.rsi_signal == '超卖' %}bg-success{% else %}bg-secondary{% endif %}">
+                                            {{ stock_info.rsi_signal }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>MACD</td>
+                                    <td>-</td>
+                                    <td>
+                                        <span class="badge {% if stock_info.macd_signal == '买入' %}bg-success{% elif stock_info.macd_signal == '卖出' %}bg-danger{% else %}bg-secondary{% endif %}">
+                                            {{ stock_info.macd_signal }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>交易量</td>
+                                    <td>{{ (stock_info.volume/10000)|round(2) }}万</td>
+                                    <td>
+                                        <span class="badge {% if stock_info.volume_trend == '放量' and stock_info.trend == '上升' %}bg-success{% elif stock_info.volume_trend == '放量' and stock_info.trend == '下降' %}bg-danger{% else %}bg-secondary{% endif %}">
+                                            {{ stock_info.volume_trend }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>波动率</td>
+                                    <td>{{ stock_info.volatility|round(2) }}%</td>
+                                    <td>
+                                        <span class="badge {% if stock_info.volatility < 20 %}bg-success{% elif stock_info.volatility > 40 %}bg-danger{% else %}bg-warning{% endif %}">
+                                            {{ '低' if stock_info.volatility < 20 else '高' if stock_info.volatility > 40 else '中' }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                {% if stock_info.bband_signal is defined %}
+                                <tr>
+                                    <td>布林带</td>
+                                    <td>{{ stock_info.bband_position|round(2) }}%</td>
+                                    <td>
+                                        <span class="badge {% if stock_info.bband_signal == '超卖区' %}bg-success{% elif stock_info.bband_signal == '超买区' %}bg-danger{% else %}bg-secondary{% endif %}">
+                                            {{ stock_info.bband_signal }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-8">
+            <div class="card mb-4 shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="card-title mb-0">价格走势图</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="price-chart" width="100%" height="400"></canvas>
+                </div>
+            </div>
+            
+            <div class="card mb-4 shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="card-title mb-0">成交量分析</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="volume-chart" width="100%" height="300"></canvas>
+                </div>
+            </div>
+            
+            <div class="card mb-4 shadow-sm">
+                <div class="card-header bg-light">
+                    <h5 class="card-title mb-0">财务指标</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>日期</th>
+                                    <th>EPS(元)</th>
+                                    <th>每股净资产(元)</th>
+                                    <th>ROE(%)</th>
+                                    <th>净利率(%)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in fina_indicator %}
+                                <tr>
+                                    <td>{{ item.end_date }}</td>
+                                    <td>{{ item.basic_eps }}</td>
+                                    <td>{{ item.bps }}</td>
+                                    <td>{{ item.roe }}</td>
+                                    <td>{{ item.net_profit_margin }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const stockData = JSON.parse(document.getElementById('stock-data').dataset.stock);
+        
+        // 配置价格图表
+        const priceCtx = document.getElementById('price-chart').getContext('2d');
+        const priceChart = new Chart(priceCtx, {
+            type: 'line',
+            data: {
+                labels: stockData.dates,
+                datasets: [{
+                    label: '收盘价',
+                    data: stockData.prices,
+                    borderColor: 'rgb(75, 192, 192)',
+                    tension: 0.1,
+                    borderWidth: 2,
+                    fill: false
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: false
+                    }
+                }
+            }
+        });
+        
+        // 配置成交量图表
+        const volumeCtx = document.getElementById('volume-chart').getContext('2d');
+        const volumeChart = new Chart(volumeCtx, {
+            type: 'bar',
+            data: {
+                labels: stockData.dates,
+                datasets: [{
+                    label: '成交量',
+                    data: stockData.volumes,
+                    backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                    borderColor: 'rgb(54, 162, 235)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    });
+</script>
+{% endblock %} 

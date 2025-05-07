@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>巨硬工作室量化分析平台</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- 自定义CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <img src="{{ url_for('static', filename='images/logo.png') }}" alt="巨硬工作室" height="30" class="d-inline-block align-text-top me-2">
+                巨硬工作室量化分析平台
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">仪表盘</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/stocks">股票列表</a>
+                    </li>
+                </ul>
+                <form class="d-flex ms-auto">
+                    <input class="form-control me-2" type="search" placeholder="搜索股票..." aria-label="Search">
+                    <button class="btn btn-outline-light" type="submit">搜索</button>
+                </form>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container mt-4">
+        {% block content %}
+        {% endblock %}
+    </main>
+
+    <footer class="footer mt-5 py-3 bg-light">
+        <div class="container text-center">
+            <span class="text-muted">© 2025 巨硬工作室量化分析平台</span>
+        </div>
+    </footer>
+
+    <!-- Bootstrap JS Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- 自定义JS -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% block scripts %}
+    {% endblock %}
+</body>
+</html> 

@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-md-6 offset-md-3">
+            <div class="card shadow-sm mt-5">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="card-title mb-0">添加股票</h4>
+                </div>
+                <div class="card-body">
+                    {% if error %}
+                    <div class="alert alert-danger" role="alert">
+                        {{ error }}
+                    </div>
+                    {% endif %}
+                    
+                    <form method="post" action="{{ url_for('add_stock') }}">
+                        <div class="mb-3">
+                            <label for="stock_code" class="form-label">股票代码</label>
+                            <input type="text" class="form-control" id="stock_code" name="stock_code" required
+                                   placeholder="输入股票代码，如：000001（平安银行）">
+                            <div class="form-text">请输入A股股票代码，不包含市场后缀</div>
+                        </div>
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary">添加</button>
+                            <a href="{{ url_for('stocks') }}" class="btn btn-secondary">返回</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <div class="card shadow-sm mt-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="card-title mb-0">常见股票代码</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>上证股票</h6>
+                            <ul class="list-unstyled">
+                                <li>600000 - 浦发银行</li>
+                                <li>601318 - 中国平安</li>
+                                <li>600519 - 贵州茅台</li>
+                                <li>601988 - 中国银行</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>深证股票</h6>
+                            <ul class="list-unstyled">
+                                <li>000001 - 平安银行</li>
+                                <li>000858 - 五粮液</li>
+                                <li>002594 - 比亚迪</li>
+                                <li>300750 - 宁德时代</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

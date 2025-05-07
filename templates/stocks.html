@@ -1,0 +1,117 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4 align-items-center">
+        <div class="col-md-6">
+            <h2>我的股票列表</h2>
+        </div>
+        <div class="col-md-6 text-end">
+            <a href="{{ url_for('add_stock') }}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> 添加股票
+            </a>
+            <a href="{{ url_for('refresh_stocks') }}" class="btn btn-success">
+                <i class="fas fa-sync-alt"></i> 刷新数据
+            </a>
+        </div>
+    </div>
+
+    {% if not stocks %}
+    <div class="alert alert-info">
+        您还没有添加任何股票。点击"添加股票"按钮开始追踪。
+    </div>
+    {% else %}
+    <div class="row">
+        {% for stock in stocks %}
+        <div class="col-md-4 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-header {% if stock.change_pct > 0 %}bg-danger text-white{% elif stock.change_pct < 0 %}bg-success text-white{% else %}bg-secondary text-white{% endif %}">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">{{ stock.name }}</h5>
+                        <span class="badge bg-light text-dark">{{ stock.symbol }}</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <h3 class="mb-0">{{ stock.current_price }}</h3>
+                        </div>
+                        <div class="col-6 text-end">
+                            <h5 class="mb-0 {% if stock.change_pct > 0 %}text-danger{% elif stock.change_pct < 0 %}text-success{% endif %}">
+                                {{ stock.change_pct }}%
+                            </h5>
+                            <small class="text-muted">{{ stock.change_amount }}</small>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-2">
+                        <div class="col-6">
+                            <small class="text-muted">成交量</small>
+                            <p class="mb-0">{{ (stock.volume/10000)|round(2) }}万</p>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted">换手率</small>
+                            <p class="mb-0">{{ stock.turnover|round(2) }}%</p>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-2">
+                        <div class="col-6">
+                            <small class="text-muted">综合评分</small>
+                            <p class="mb-0">
+                                <span class="badge {% if stock.score >= 80 %}bg-success{% elif stock.score >= 60 %}bg-primary{% elif stock.score >= 40 %}bg-warning{% elif stock.score >= 20 %}bg-warning text-dark{% else %}bg-danger{% endif %}">
+                                    {{ stock.score|default(0) }}
+                                </span>
+                            </p>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted">投资建议</small>
+                            <p class="mb-0">
+                                <span class="badge {% if stock.recommendation == '强烈推荐买入' or stock.recommendation == '建议买入' %}bg-danger{% elif stock.recommendation == '建议卖出' or stock.recommendation == '建议减持' %}bg-success{% else %}bg-dark{% endif %}">
+                                    {{ stock.recommendation|default('数据不足') }}
+                                </span>
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div class="row mb-2">
+                        <div class="col-12">
+                            <small class="text-muted">所属市场</small>
+                            <p class="mb-0">{% if stock.symbol.startswith('6') %}上证{% elif stock.symbol.startswith('0') or stock.symbol.startswith('3') %}深证{% else %}其他{% endif %}</p>
+                        </div>
+                    </div>
+                    
+                    {% if stock.score is defined %}
+                    <div class="row">
+                        <div class="col-12">
+                            <hr>
+                            <div class="d-flex justify-content-between">
+                                <a href="{{ url_for('analysis', symbol=stock.symbol) }}" class="btn btn-sm btn-outline-primary">详细分析</a>
+                                <a href="{{ url_for('remove_stock', symbol=stock.symbol) }}" class="btn btn-sm btn-outline-danger" onclick="return confirm('确定要从投资组合中删除该股票吗？')">删除</a>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="card-footer text-muted">
+                    <small>最后更新: {{ stock.last_update }}</small>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block styles %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+<style>
+    .card {
+        transition: transform 0.3s;
+    }
+    .card:hover {
+        transform: translateY(-5px);
+    }
+</style>
+{% endblock %} 

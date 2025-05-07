@@ -1,0 +1,7 @@
+flask==2.3.3
+pandas==2.2.0
+numpy==1.25.0
+akshare==1.16.87
+requests==2.31.0
+chardet==5.2.0
+werkzeug==2.3.7 
