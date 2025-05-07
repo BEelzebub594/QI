@@ -18,7 +18,7 @@
 # 2. 指标选择: 当前系统更注重市场数据(价格/成交量/换手率)，@StockAnalysis更注重技术指标
 # 3. 评分阈值: 当前系统有更多的阈值档位，@StockAnalysis只有单一阈值
 
-from flask import Flask, render_template, request, redirect, url_for, jsonify
+from flask import Flask, render_template, request, redirect, url_for, jsonify, flash
 import os
 import pandas as pd
 import numpy as np
@@ -29,6 +29,7 @@ import akshare as ak
 import json
 
 app = Flask(__name__)
+app.secret_key = 'your-secret-key-here'  # 添加密钥用于flash消息
 
 # 设置请求超时和重试
 # os.environ['http_proxy'] = 'http://127.0.0.1:10808'
@@ -188,13 +189,21 @@ def calculate_stock_score(stock_data):
 def dashboard():
     """显示主仪表盘页面，包含实时市场数据"""
     try:
+        print("开始获取仪表盘数据...")
+        
         # 获取上证指数、深证成指、创业板指的实时数据
         indices_df = ak.stock_zh_index_spot()
+        print(f"获取到指数数据: {len(indices_df)} 条")
+        print("指数数据列名:", indices_df.columns.tolist())
         
         # 提取需要的指数
         sh_index = indices_df[indices_df['名称'] == '上证指数'].iloc[0] if '上证指数' in indices_df['名称'].values else None
         sz_index = indices_df[indices_df['名称'] == '深证成指'].iloc[0] if '深证成指' in indices_df['名称'].values else None
         cyb_index = indices_df[indices_df['名称'] == '创业板指'].iloc[0] if '创业板指' in indices_df['名称'].values else None
+        
+        print(f"上证指数数据: {sh_index.to_dict() if sh_index is not None else 'None'}")
+        print(f"深证成指数据: {sz_index.to_dict() if sz_index is not None else 'None'}")
+        print(f"创业板指数据: {cyb_index.to_dict() if cyb_index is not None else 'None'}")
         
         # 准备指数数据
         indices = {
@@ -220,20 +229,30 @@ def dashboard():
         
         # 获取行业板块数据
         try:
+            print("开始获取行业板块数据...")
             industry_df = ak.stock_board_industry_name_em()
+            print(f"获取到行业板块数据: {len(industry_df)} 条")
+            print("行业板块数据列名:", industry_df.columns.tolist())
+            
             industries = []
             for _, row in industry_df.head(10).iterrows():
                 industries.append({
                     'name': row['板块名称'],
                     'change_pct': float(row['涨跌幅'])
                 })
+            print(f"处理后的行业板块数据: {industries}")
         except Exception as e:
+            print(f"获取行业板块数据失败: {str(e)}")
             app.logger.error(f"获取行业板块数据失败: {str(e)}")
             industries = []
         
         # 获取涨幅榜和跌幅榜
         try:
+            print("开始获取涨跌幅榜数据...")
             stock_df = ak.stock_zh_a_spot_em()
+            print(f"获取到股票数据: {len(stock_df)} 条")
+            print("股票数据列名:", stock_df.columns.tolist())
+            
             # 涨幅榜
             gainers = []
             for _, row in stock_df.nlargest(5, '涨跌幅').iterrows():
@@ -243,6 +262,7 @@ def dashboard():
                     'price': float(row['最新价']),
                     'change_pct': float(row['涨跌幅'])
                 })
+            print(f"涨幅榜数据: {gainers}")
             
             # 跌幅榜
             losers = []
@@ -253,19 +273,26 @@ def dashboard():
                     'price': float(row['最新价']),
                     'change_pct': float(row['涨跌幅'])
                 })
+            print(f"跌幅榜数据: {losers}")
         except Exception as e:
+            print(f"获取涨跌幅榜数据失败: {str(e)}")
             app.logger.error(f"获取涨跌幅榜数据失败: {str(e)}")
             gainers = []
             losers = []
         
         # 获取指数历史数据用于走势图
         try:
+            print("开始获取指数历史数据...")
             end_date = datetime.now().strftime("%Y%m%d")
             start_date = (datetime.now() - timedelta(days=30)).strftime("%Y%m%d")
             
             sh_hist = ak.stock_zh_index_daily(symbol="sh000001")
             sz_hist = ak.stock_zh_index_daily(symbol="sz399001")
             cyb_hist = ak.stock_zh_index_daily(symbol="sz399006")
+            
+            print(f"获取到上证指数历史数据: {len(sh_hist)} 条")
+            print(f"获取到深证成指历史数据: {len(sz_hist)} 条")
+            print(f"获取到创业板指历史数据: {len(cyb_hist)} 条")
             
             # 处理数据用于图表显示
             trend_data = {
@@ -274,7 +301,9 @@ def dashboard():
                 'sz_values': sz_hist['close'].tolist(),
                 'cyb_values': cyb_hist['close'].tolist()
             }
+            print(f"处理后的走势图数据: {trend_data}")
         except Exception as e:
+            print(f"获取指数历史数据失败: {str(e)}")
             app.logger.error(f"获取指数历史数据失败: {str(e)}")
             trend_data = {
                 'dates': [],
@@ -283,6 +312,7 @@ def dashboard():
                 'cyb_values': []
             }
         
+        print("所有数据获取完成，准备渲染模板...")
         return render_template('dashboard.html', 
                              indices=indices,
                              industries=industries,
@@ -291,6 +321,7 @@ def dashboard():
                              trend_data=trend_data)
                              
     except Exception as e:
+        print(f"仪表盘数据获取失败: {str(e)}")
         app.logger.error(f"仪表盘数据获取失败: {str(e)}")
         flash('获取市场数据失败，请稍后重试', 'error')
         return render_template('dashboard.html',
