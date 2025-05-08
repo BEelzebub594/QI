@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+  <!-- 主横幅 -->
+  <div class="jumbotron p-5 mb-4 bg-light rounded-3">
+    <div class="container-fluid py-5">
+      <h1 class="display-4 fw-bold">巨硬工作室量化分析平台</h1>
+      <p class="col-md-8 fs-4">专业的股票分析与量化交易系统，助您把握市场脉搏，实现投资收益最大化。</p>
+      <div class="mt-4">
+        <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg me-2">立即注册</a>
+        <a href="{{ url_for('login') }}" class="btn btn-outline-primary btn-lg">登录账户</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- 特点展示 -->
+  <div class="row g-4 py-5">
+    <div class="col-md-4">
+      <div class="card h-100 shadow-sm">
+        <div class="card-body text-center">
+          <div class="mb-3">
+            <i class="fas fa-chart-line fa-3x text-primary"></i>
+          </div>
+          <h3 class="card-title">市场分析</h3>
+          <p class="card-text">实时获取市场行情，提供专业的股票分析和评分，助您把握市场动向。</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card h-100 shadow-sm">
+        <div class="card-body text-center">
+          <div class="mb-3">
+            <i class="fas fa-robot fa-3x text-primary"></i>
+          </div>
+          <h3 class="card-title">量化交易</h3>
+          <p class="card-text">基于历史数据和技术指标，提供智能化的交易建议，帮助您做出更明智的投资决策。</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card h-100 shadow-sm">
+        <div class="card-body text-center">
+          <div class="mb-3">
+            <i class="fas fa-user-shield fa-3x text-primary"></i>
+          </div>
+          <h3 class="card-title">个人投资组合</h3>
+          <p class="card-text">创建和管理您自己的股票投资组合，实时追踪绩效，让投资一目了然。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 最新市场动态 -->
+  <div class="row my-4">
+    <div class="col-12">
+      <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+          <h4 class="mb-0">市场概览</h4>
+          {% if last_updated %}
+          <small>最后更新: {{ last_updated }}</small>
+          {% endif %}
+        </div>
+        <div class="card-body">
+          <div class="row">
+            {% if indices %}
+            <div class="col-md-4 mb-3">
+              <div class="p-3 border rounded text-center">
+                <h5>上证指数</h5>
+                <div class="d-flex justify-content-center align-items-center">
+                  <span class="display-6">{{ indices.sh.current|round(2) }}</span>
+                  <span class="ms-2 badge {% if indices.sh.change_pct > 0 %}bg-danger{% elif indices.sh.change_pct < 0 %}bg-success{% else %}bg-secondary{% endif %}">
+                    {{ '+' if indices.sh.change_pct > 0 else '' }}{{ indices.sh.change_pct|round(2) }}%
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-4 mb-3">
+              <div class="p-3 border rounded text-center">
+                <h5>深证成指</h5>
+                <div class="d-flex justify-content-center align-items-center">
+                  <span class="display-6">{{ indices.sz.current|round(2) }}</span>
+                  <span class="ms-2 badge {% if indices.sz.change_pct > 0 %}bg-danger{% elif indices.sz.change_pct < 0 %}bg-success{% else %}bg-secondary{% endif %}">
+                    {{ '+' if indices.sz.change_pct > 0 else '' }}{{ indices.sz.change_pct|round(2) }}%
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-4 mb-3">
+              <div class="p-3 border rounded text-center">
+                <h5>创业板指</h5>
+                <div class="d-flex justify-content-center align-items-center">
+                  <span class="display-6">{{ indices.cyb.current|round(2) }}</span>
+                  <span class="ms-2 badge {% if indices.cyb.change_pct > 0 %}bg-danger{% elif indices.cyb.change_pct < 0 %}bg-success{% else %}bg-secondary{% endif %}">
+                    {{ '+' if indices.cyb.change_pct > 0 else '' }}{{ indices.cyb.change_pct|round(2) }}%
+                  </span>
+                </div>
+              </div>
+            </div>
+            {% else %}
+            <div class="col-md-4 mb-3">
+              <div class="p-3 border rounded text-center">
+                <h5>上证指数</h5>
+                <div class="d-flex justify-content-center align-items-center">
+                  <span class="display-6">--</span>
+                  <span class="ms-2 badge bg-secondary">--</span>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-4 mb-3">
+              <div class="p-3 border rounded text-center">
+                <h5>深证成指</h5>
+                <div class="d-flex justify-content-center align-items-center">
+                  <span class="display-6">--</span>
+                  <span class="ms-2 badge bg-secondary">--</span>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-4 mb-3">
+              <div class="p-3 border rounded text-center">
+                <h5>创业板指</h5>
+                <div class="d-flex justify-content-center align-items-center">
+                  <span class="display-6">--</span>
+                  <span class="ms-2 badge bg-secondary">--</span>
+                </div>
+              </div>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 行业板块和涨跌幅 -->
+  <div class="row g-4 mb-4">
+    <!-- 行业板块 -->
+    <div class="col-md-4">
+      <div class="card h-100 shadow-sm">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0">热门行业板块</h5>
+        </div>
+        <div class="card-body">
+          {% if industries %}
+            <ul class="list-group list-group-flush">
+              {% for industry in industries %}
+              <li class="list-group-item d-flex justify-content-between align-items-center">
+                {{ industry.name }}
+                <span class="badge {% if industry.change_pct > 0 %}bg-danger{% elif industry.change_pct < 0 %}bg-success{% else %}bg-secondary{% endif %}">
+                  {{ '+' if industry.change_pct > 0 else '' }}{{ industry.change_pct|round(2) }}%
+                </span>
+              </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="text-center my-3 text-muted">暂无数据</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    
+    <!-- 涨幅榜 -->
+    <div class="col-md-4">
+      <div class="card h-100 shadow-sm">
+        <div class="card-header bg-danger text-white">
+          <h5 class="mb-0">涨幅榜</h5>
+        </div>
+        <div class="card-body">
+          {% if gainers %}
+            <ul class="list-group list-group-flush">
+              {% for stock in gainers %}
+              <li class="list-group-item d-flex justify-content-between align-items-center">
+                {{ stock.name }}
+                <span class="badge bg-danger">
+                  +{{ stock.change_pct|round(2) }}%
+                </span>
+              </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="text-center my-3 text-muted">暂无数据</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    
+    <!-- 跌幅榜 -->
+    <div class="col-md-4">
+      <div class="card h-100 shadow-sm">
+        <div class="card-header bg-success text-white">
+          <h5 class="mb-0">跌幅榜</h5>
+        </div>
+        <div class="card-body">
+          {% if losers %}
+            <ul class="list-group list-group-flush">
+              {% for stock in losers %}
+              <li class="list-group-item d-flex justify-content-between align-items-center">
+                {{ stock.name }}
+                <span class="badge bg-success">
+                  {{ stock.change_pct|round(2) }}%
+                </span>
+              </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="text-center my-3 text-muted">暂无数据</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 平台优势 -->
+  <div class="row my-5">
+    <div class="col-md-6">
+      <h2 class="mb-4">为什么选择我们的平台？</h2>
+      <ul class="list-group list-group-flush">
+        <li class="list-group-item d-flex">
+          <i class="fas fa-check-circle text-success me-3 mt-1"></i>
+          <div>
+            <strong>专业的技术分析</strong>
+            <p class="mb-0 text-muted">基于多种技术指标的综合分析，提供专业的投资建议</p>
+          </div>
+        </li>
+        <li class="list-group-item d-flex">
+          <i class="fas fa-check-circle text-success me-3 mt-1"></i>
+          <div>
+            <strong>实时数据更新</strong>
+            <p class="mb-0 text-muted">市场数据实时获取，确保决策基于最新信息</p>
+          </div>
+        </li>
+        <li class="list-group-item d-flex">
+          <i class="fas fa-check-circle text-success me-3 mt-1"></i>
+          <div>
+            <strong>个性化投资组合</strong>
+            <p class="mb-0 text-muted">根据个人风险偏好和投资目标，定制专属投资策略</p>
+          </div>
+        </li>
+        <li class="list-group-item d-flex">
+          <i class="fas fa-check-circle text-success me-3 mt-1"></i>
+          <div>
+            <strong>直观的可视化界面</strong>
+            <p class="mb-0 text-muted">图表丰富、操作简便，让复杂的数据分析变得简单</p>
+          </div>
+        </li>
+      </ul>
+    </div>
+    <div class="col-md-6">
+      <img src="{{ url_for('static', filename='images/logo.png') }}" alt="交易示意图" class="img-fluid rounded shadow-sm" style="max-height: 300px; margin: auto; display: block;">
+    </div>
+  </div>
+
+  <!-- 用户注册区域 -->
+  <div class="p-5 mb-4 bg-primary text-white rounded-3 text-center">
+    <h2 class="mb-3">准备好开始您的投资之旅了吗？</h2>
+    <p class="mb-4">加入我们，开启专业的量化投资体验</p>
+    <a href="{{ url_for('register') }}" class="btn btn-light btn-lg px-4">立即注册</a>
+  </div>
+</div>
+{% endblock %} 

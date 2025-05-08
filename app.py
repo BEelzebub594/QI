@@ -476,10 +476,28 @@ def calculate_stock_score(stock_data):
 
 @app.route('/')
 def index():
-    """根路由重定向到dashboard"""
-    if current_user.is_authenticated:
-        return redirect(url_for('dashboard'))
-    return redirect(url_for('login'))
+    """首页路由，显示公开的信息页面"""
+    try:
+        # 尝试获取市场数据
+        # 使用与仪表盘相同的数据获取函数，但不要求登录
+        data = get_dashboard_data(force_refresh=False)
+        
+        # 从缓存中获取指数、行业、涨跌幅数据
+        indices = data.get('indices', {})
+        industries = data.get('industries', [])
+        gainers = data.get('gainers', [])
+        losers = data.get('losers', [])
+        
+        return render_template('index.html', 
+                              indices=indices,
+                              industries=industries, 
+                              gainers=gainers, 
+                              losers=losers,
+                              last_updated=data.get('last_updated', ''))
+    except Exception as e:
+        # 如果获取数据失败，仍然显示首页，但不包含动态数据
+        logger.error(f"首页获取数据失败: {str(e)}")
+        return render_template('index.html')
 
 def get_dashboard_data(force_refresh=False):
     """获取首页数据，带缓存

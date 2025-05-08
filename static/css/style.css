@@ -15,8 +15,8 @@
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    background-color: var(--bg-color);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f8f9fa;
     color: var(--text-color);
     line-height: 1.6;
 }
@@ -55,14 +55,17 @@ body {
 
 /* 卡片样式 */
 .card {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
     border: none;
-    border-radius: 8px;
-    box-shadow: var(--card-shadow);
-    transition: transform var(--transition-speed);
 }
 
 .card:hover {
-    transform: translateY(-2px);
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+.card-header {
+    font-weight: 600;
 }
 
 /* 按钮样式 */
@@ -74,17 +77,25 @@ body {
 }
 
 .btn-primary {
-    background: linear-gradient(135deg, #1677ff, #4096ff);
-    border: none;
-    padding: 0.75rem 1.5rem;
-    transition: all 0.3s ease;
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+    box-shadow: 0 2px 4px rgba(13, 110, 253, 0.2);
 }
 
-.btn-primary:hover, 
-.btn-primary:focus {
-    background: linear-gradient(135deg, #0d6efd, #1677ff);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(13, 110, 253, 0.25);
+.btn-primary:hover {
+    background-color: #0b5ed7;
+    border-color: #0a58ca;
+    box-shadow: 0 4px 8px rgba(13, 110, 253, 0.3);
+}
+
+.btn-outline-primary {
+    border-color: #0d6efd;
+    color: #0d6efd;
+}
+
+.btn-outline-primary:hover {
+    background-color: #0d6efd;
+    color: white;
 }
 
 /* 表单样式 */
@@ -192,6 +203,14 @@ body {
     .nav-link {
         padding: 0.5rem !important;
     }
+    
+    .jumbotron {
+        padding: 2rem !important;
+    }
+    
+    .jumbotron .container-fluid {
+        padding: 2rem 0 !important;
+    }
 }
 
 /* 巨硬工作室品牌相关样式 */
@@ -208,8 +227,11 @@ body {
 }
 
 .brand-text {
-    font-family: 'Microsoft YaHei', sans-serif;
-    font-weight: 600;
+    background: linear-gradient(45deg, #0d6efd, #6610f2);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    font-weight: 700;
 }
 
 /* 仪表盘特殊样式 */
@@ -255,6 +277,7 @@ body {
 
 .badge {
     font-weight: 500;
+    padding: 6px 10px;
 }
 
 .btn-sm {
@@ -299,4 +322,16 @@ body {
 .login-page-bg {
     background: linear-gradient(135deg, #f5f7fa, #eef2f5);
     min-height: 100vh;
+}
+
+/* 首页特定样式 */
+.jumbotron {
+    background-color: #f1f5f9;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+/* 图标样式 */
+.fas {
+    margin-right: 5px;
 } 
