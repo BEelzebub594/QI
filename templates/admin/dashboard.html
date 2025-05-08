@@ -1,0 +1,145 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+<div class="admin-title">
+    <h2><i class="fas fa-tachometer-alt"></i> 管理控制台</h2>
+</div>
+
+<!-- 数据统计卡片 -->
+<div class="row mb-4">
+    <div class="col-md-6 col-lg-3 mb-3">
+        <div class="card card-stats shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="card-title text-muted mb-0">总用户数</h5>
+                        <h2 class="my-2">{{ stats.users_count }}</h2>
+                        <p class="mb-0 text-success">
+                            <i class="fas fa-users"></i> 活跃: {{ stats.active_users_count }}
+                        </p>
+                    </div>
+                    <div>
+                        <div class="bg-primary bg-opacity-10 p-3 rounded-circle">
+                            <i class="fas fa-users fa-2x text-primary"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 col-lg-3 mb-3">
+        <div class="card card-stats shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="card-title text-muted mb-0">管理员数</h5>
+                        <h2 class="my-2">{{ stats.admins_count }}</h2>
+                        <p class="mb-0 text-primary">
+                            <i class="fas fa-user-shield"></i> 系统管理员
+                        </p>
+                    </div>
+                    <div>
+                        <div class="bg-success bg-opacity-10 p-3 rounded-circle">
+                            <i class="fas fa-user-shield fa-2x text-success"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 col-lg-3 mb-3">
+        <div class="card card-stats shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="card-title text-muted mb-0">登录次数</h5>
+                        <h2 class="my-2">{{ stats.login_count }}</h2>
+                        <p class="mb-0 text-primary">
+                            <i class="fas fa-sign-in-alt"></i> 成功登录
+                        </p>
+                    </div>
+                    <div>
+                        <div class="bg-info bg-opacity-10 p-3 rounded-circle">
+                            <i class="fas fa-sign-in-alt fa-2x text-info"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 col-lg-3 mb-3">
+        <div class="card card-stats shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="card-title text-muted mb-0">失败登录</h5>
+                        <h2 class="my-2">{{ stats.failed_login_count }}</h2>
+                        <p class="mb-0 text-danger">
+                            <i class="fas fa-exclamation-triangle"></i> 失败尝试
+                        </p>
+                    </div>
+                    <div>
+                        <div class="bg-danger bg-opacity-10 p-3 rounded-circle">
+                            <i class="fas fa-exclamation-triangle fa-2x text-danger"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 最近登录记录 -->
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">最近登录记录</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>用户名</th>
+                                <th>IP地址</th>
+                                <th>登录时间</th>
+                                <th>状态</th>
+                                <th>浏览器</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in recent_logins %}
+                            <tr>
+                                <td>{{ log.user.username }}</td>
+                                <td>{{ log.ip_address }}</td>
+                                <td>{{ log.login_time.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                                <td>
+                                    {% if log.status == 'success' %}
+                                    <span class="badge bg-success">成功</span>
+                                    {% else %}
+                                    <span class="badge bg-danger">失败</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <small class="text-muted">{{ log.user_agent|truncate(50) }}</small>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="text-end mt-3">
+                    <a href="{{ url_for('admin_login_logs') }}" class="btn btn-primary btn-sm">
+                        <i class="fas fa-list"></i> 查看全部日志
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

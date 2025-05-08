@@ -1,0 +1,105 @@
+{% extends "admin/base.html" %}
+
+{% block content %}
+<div class="admin-title">
+    <h2><i class="fas fa-history"></i> 登录日志</h2>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>用户名</th>
+                        <th>IP地址</th>
+                        <th>登录时间</th>
+                        <th>状态</th>
+                        <th>浏览器</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in logs.items %}
+                    <tr>
+                        <td>{{ log.id }}</td>
+                        <td>
+                            <a href="{{ url_for('admin_edit_user', id=log.user_id) }}">
+                                {{ log.user.username }}
+                            </a>
+                        </td>
+                        <td>{{ log.ip_address }}</td>
+                        <td>{{ log.login_time.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                        <td>
+                            {% if log.status == 'success' %}
+                            <span class="badge bg-success">成功</span>
+                            {% else %}
+                            <span class="badge bg-danger">失败</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <small class="text-muted">{{ log.user_agent|truncate(50) }}</small>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- 分页控件 -->
+        <nav aria-label="分页" class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% if logs.has_prev %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('admin_login_logs', page=logs.prev_num) }}">
+                        <i class="fas fa-chevron-left"></i> 上一页
+                    </a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">
+                        <i class="fas fa-chevron-left"></i> 上一页
+                    </span>
+                </li>
+                {% endif %}
+                
+                {% for page_num in logs.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                    {% if page_num %}
+                        {% if page_num == logs.page %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ page_num }}</span>
+                        </li>
+                        {% else %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('admin_login_logs', page=page_num) }}">{{ page_num }}</a>
+                        </li>
+                        {% endif %}
+                    {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">...</span>
+                    </li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if logs.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('admin_login_logs', page=logs.next_num) }}">
+                        下一页 <i class="fas fa-chevron-right"></i>
+                    </a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">
+                        下一页 <i class="fas fa-chevron-right"></i>
+                    </span>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        
+        <div class="text-center text-muted small mt-2">
+            显示 {{ logs.items|length }} 条记录，共 {{ logs.total }} 条
+        </div>
+    </div>
+</div>
+{% endblock %} 

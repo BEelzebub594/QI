@@ -18,18 +18,203 @@
 # 2. 指标选择: 当前系统更注重市场数据(价格/成交量/换手率)，@StockAnalysis更注重技术指标
 # 3. 评分阈值: 当前系统有更多的阈值档位，@StockAnalysis只有单一阈值
 
-from flask import Flask, render_template, request, redirect, url_for, jsonify, flash
+from flask import Flask, render_template, request, redirect, url_for, jsonify, flash, session
+from flask_login import LoginManager, login_user, logout_user, login_required, current_user
+from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
+from werkzeug.security import generate_password_hash, check_password_hash
 import os
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import requests
 import time
 import akshare as ak
 import json
+from models import db, User, LoginLog, UserPortfolio, get_beijing_time
+from forms import LoginForm, RegistrationForm, UserSettingsForm
+import asyncio
+import concurrent.futures
+import logging
+from functools import wraps
+import pytz
+
+# 配置日志
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-app.secret_key = 'your-secret-key-here'  # 添加密钥用于flash消息
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key-please-change-in-production')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# 初始化扩展
+db.init_app(app)
+migrate = Migrate(app, db)
+
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+login_manager.login_message = '请先登录'
+login_manager.login_message_category = 'info'
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+# 创建数据库表
+with app.app_context():
+    db.create_all()
+
+# 公网IP缓存
+public_ip_cache = {
+    'ip': None,
+    'timestamp': 0,
+    'expires': 3600  # 缓存有效期1小时
+}
+
+# 辅助函数获取客户端真实IP
+def get_client_ip(try_public_ip=False):
+    """获取客户端真实IP地址，不再费力获取公网IP
+    
+    Args:
+        try_public_ip: 是否尝试获取公网IP（该参数已被忽略）
+    
+    Returns:
+        str: 客户端IP地址
+    """
+    # 优先使用X-Forwarded-For头
+    if 'X-Forwarded-For' in request.headers:
+        forwarded_for = request.headers.get('X-Forwarded-For', '')
+        return forwarded_for.split(',')[0].strip()
+    
+    # 其次使用X-Real-IP头
+    if 'X-Real-IP' in request.headers:
+        return request.headers.get('X-Real-IP', '').strip()
+    
+    # 再次使用环境变量
+    if 'HTTP_X_FORWARDED_FOR' in request.environ:
+        return request.environ.get('HTTP_X_FORWARDED_FOR', '').strip()
+    
+    # 最后使用remote_addr
+    return request.remote_addr or '0.0.0.0'
+
+# 登录路由
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+    
+    # GET请求，直接返回登录表单，不进行任何耗时操作
+    if request.method == 'GET':
+        form = LoginForm()
+        return render_template('login.html', form=form)
+    
+    # 处理POST请求（表单提交）
+    form = LoginForm()
+    if form.validate_on_submit():
+        user = User.query.filter_by(username=form.username.data).first()
+        if user and user.check_password(form.password.data):
+            login_user(user, remember=form.remember_me.data)
+            # 记录用户登录IP - 仅在登录成功时获取
+            client_ip = get_client_ip(try_public_ip=True)
+            user_agent = request.headers.get('User-Agent', '')
+            
+            # 创建登录日志
+            login_log = LoginLog(
+                user_id=user.id,
+                ip_address=client_ip,
+                user_agent=user_agent,
+                status='success',
+                login_time=get_beijing_time()  # 明确指定使用北京时间
+            )
+            db.session.add(login_log)
+            
+            # 更新用户最后登录信息
+            user.last_login_at = get_beijing_time()
+            user.last_login_ip = client_ip
+            db.session.commit()
+            
+            next_page = request.args.get('next')
+            flash('登录成功！', 'success')
+            return redirect(next_page or url_for('dashboard'))
+        
+        # 记录失败的登录尝试
+        if user:
+            # 登录失败时使用简化的IP获取方式，不尝试获取公网IP
+            client_ip = request.remote_addr
+            if 'X-Forwarded-For' in request.headers:
+                forwarded_for = request.headers.get('X-Forwarded-For', '')
+                client_ip = forwarded_for.split(',')[0].strip()
+            elif 'X-Real-IP' in request.headers:
+                client_ip = request.headers.get('X-Real-IP', '').strip()
+            
+            login_log = LoginLog(
+                user_id=user.id,
+                ip_address=client_ip,
+                user_agent=request.headers.get('User-Agent', ''),
+                status='failed',
+                login_time=get_beijing_time()  # 明确指定使用北京时间
+            )
+            db.session.add(login_log)
+            db.session.commit()
+            
+        flash('用户名或密码错误', 'danger')
+    return render_template('login.html', form=form)
+
+# 注册路由
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+    
+    form = RegistrationForm()
+    if form.validate_on_submit():
+        user = User(username=form.username.data, email=form.email.data)
+        user.set_password(form.password.data)
+        db.session.add(user)
+        db.session.commit()
+        flash('注册成功！请登录', 'success')
+        return redirect(url_for('login'))
+    return render_template('register.html', form=form)
+
+# 登出路由
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    flash('已退出登录', 'info')
+    return redirect(url_for('login'))
+
+# 用户设置路由
+@app.route('/user/settings', methods=['GET', 'POST'])
+@login_required
+def user_settings():
+    form = UserSettingsForm(original_email=current_user.email)
+    
+    if form.validate_on_submit():
+        # 检查邮箱是否修改
+        if form.email.data != current_user.email:
+            current_user.email = form.email.data
+        
+        # 检查是否修改密码
+        if form.current_password.data and form.new_password.data:
+            if current_user.check_password(form.current_password.data):
+                current_user.set_password(form.new_password.data)
+                flash('密码已成功更新', 'success')
+            else:
+                flash('当前密码不正确', 'danger')
+                return render_template('user_settings.html', form=form)
+        
+        db.session.commit()
+        flash('设置已保存', 'success')
+        return redirect(url_for('user_settings'))
+    
+    # 表单初始化
+    if request.method == 'GET':
+        form.email.data = current_user.email
+    
+    return render_template('user_settings.html', form=form)
 
 # 设置请求超时和重试
 # os.environ['http_proxy'] = 'http://127.0.0.1:10808'
@@ -42,20 +227,124 @@ market_data_cache = {
     'timestamp': 0
 }
 
-# 存储用户添加的股票
-PORTFOLIO_FILE = 'portfolio.json'
+# 首页数据缓存
+dashboard_cache = {
+    'data': None,
+    'timestamp': 0
+}
 
-def load_portfolio():
-    """加载用户投资组合"""
-    if os.path.exists(PORTFOLIO_FILE):
-        with open(PORTFOLIO_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return []
+def load_portfolio(user_id):
+    """加载用户投资组合
+    
+    Args:
+        user_id: 用户ID
+        
+    Returns:
+        list: 用户的股票列表
+    """
+    portfolio_items = UserPortfolio.query.filter_by(user_id=user_id).all()
+    portfolio = []
+    
+    for item in portfolio_items:
+        stock_data = item.get_stock_data()
+        # 确保基本信息存在
+        if not stock_data:
+            stock_data = {
+                "symbol": item.symbol,
+                "name": item.name
+            }
+        # 确保股票代码和名称是最新的
+        stock_data["symbol"] = item.symbol
+        stock_data["name"] = item.name
+        portfolio.append(stock_data)
+    
+    return portfolio
 
-def save_portfolio(portfolio):
-    """保存用户投资组合"""
-    with open(PORTFOLIO_FILE, 'w', encoding='utf-8') as f:
-        json.dump(portfolio, f, ensure_ascii=False, indent=2)
+def save_portfolio(user_id, portfolio):
+    """保存用户投资组合
+    
+    Args:
+        user_id: 用户ID
+        portfolio: 用户的股票列表
+    """
+    # 获取用户当前的投资组合
+    current_items = UserPortfolio.query.filter_by(user_id=user_id).all()
+    current_symbols = {item.symbol: item for item in current_items}
+    
+    # 处理新的投资组合
+    for stock in portfolio:
+        symbol = stock.get("symbol")
+        if not symbol:
+            continue
+            
+        # 检查是否已存在
+        if symbol in current_symbols:
+            # 更新现有记录
+            item = current_symbols[symbol]
+            item.name = stock.get("name", "")
+            item.set_stock_data(stock)
+            del current_symbols[symbol]  # 从待处理列表中移除
+        else:
+            # 添加新记录
+            item = UserPortfolio(
+                user_id=user_id,
+                symbol=symbol,
+                name=stock.get("name", "")
+            )
+            item.set_stock_data(stock)
+            db.session.add(item)
+    
+    # 删除不再存在的股票
+    for item in current_symbols.values():
+        db.session.delete(item)
+    
+    # 保存更改
+    db.session.commit()
+
+def add_stock_to_portfolio(user_id, stock_data):
+    """添加股票到用户投资组合
+    
+    Args:
+        user_id: 用户ID
+        stock_data: 股票数据
+    """
+    symbol = stock_data.get("symbol")
+    if not symbol:
+        return False
+        
+    # 检查是否已存在
+    existing = UserPortfolio.query.filter_by(user_id=user_id, symbol=symbol).first()
+    if existing:
+        # 更新现有记录
+        existing.name = stock_data.get("name", "")
+        existing.set_stock_data(stock_data)
+    else:
+        # 添加新记录
+        item = UserPortfolio(
+            user_id=user_id,
+            symbol=symbol,
+            name=stock_data.get("name", "")
+        )
+        item.set_stock_data(stock_data)
+        db.session.add(item)
+    
+    # 保存更改
+    db.session.commit()
+    return True
+
+def remove_stock_from_portfolio(user_id, symbol):
+    """从用户投资组合中删除股票
+    
+    Args:
+        user_id: 用户ID
+        symbol: 股票代码
+    """
+    item = UserPortfolio.query.filter_by(user_id=user_id, symbol=symbol).first()
+    if item:
+        db.session.delete(item)
+        db.session.commit()
+        return True
+    return False
 
 def get_market_data():
     """获取市场数据，带缓存"""
@@ -186,159 +475,261 @@ def calculate_stock_score(stock_data):
         }
 
 @app.route('/')
-def dashboard():
-    """显示主仪表盘页面，包含实时市场数据"""
-    try:
-        print("开始获取仪表盘数据...")
+def index():
+    """根路由重定向到dashboard"""
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+    return redirect(url_for('login'))
+
+def get_dashboard_data(force_refresh=False):
+    """获取首页数据，带缓存
+    
+    Args:
+        force_refresh (bool): 是否强制刷新缓存
+    """
+    global dashboard_cache
+    
+    current_time = time.time()
+    
+    # 只有在以下情况才刷新缓存:
+    # 1. 缓存为空
+    # 2. 缓存过期
+    # 3. 强制刷新
+    if (dashboard_cache['data'] is None or 
+        current_time - dashboard_cache['timestamp'] > CACHE_EXPIRATION or
+        force_refresh):
         
-        # 获取上证指数、深证成指、创业板指的实时数据
-        indices_df = ak.stock_zh_index_spot()
-        print(f"获取到指数数据: {len(indices_df)} 条")
-        print("指数数据列名:", indices_df.columns.tolist())
+        print(f"刷新缓存原因: 缓存为空={dashboard_cache['data'] is None}, 缓存过期={(current_time - dashboard_cache['timestamp'] > CACHE_EXPIRATION)}, 强制刷新={force_refresh}")
         
-        # 提取需要的指数
-        sh_index = indices_df[indices_df['名称'] == '上证指数'].iloc[0] if '上证指数' in indices_df['名称'].values else None
-        sz_index = indices_df[indices_df['名称'] == '深证成指'].iloc[0] if '深证成指' in indices_df['名称'].values else None
-        cyb_index = indices_df[indices_df['名称'] == '创业板指'].iloc[0] if '创业板指' in indices_df['名称'].values else None
-        
-        print(f"上证指数数据: {sh_index.to_dict() if sh_index is not None else 'None'}")
-        print(f"深证成指数据: {sz_index.to_dict() if sz_index is not None else 'None'}")
-        print(f"创业板指数据: {cyb_index.to_dict() if cyb_index is not None else 'None'}")
-        
-        # 准备指数数据
-        indices = {
-            'sh_index': {
-                'name': sh_index['名称'] if sh_index is not None else '上证指数',
-                'current': float(sh_index['最新价']) if sh_index is not None else 0,
-                'change_pct': float(sh_index['涨跌幅']) if sh_index is not None else 0,
-                'change': float(sh_index['涨跌额']) if sh_index is not None else 0
-            },
-            'sz_index': {
-                'name': sz_index['名称'] if sz_index is not None else '深证成指',
-                'current': float(sz_index['最新价']) if sz_index is not None else 0,
-                'change_pct': float(sz_index['涨跌幅']) if sz_index is not None else 0,
-                'change': float(sz_index['涨跌额']) if sz_index is not None else 0
-            },
-            'cyb_index': {
-                'name': cyb_index['名称'] if cyb_index is not None else '创业板指',
-                'current': float(cyb_index['最新价']) if cyb_index is not None else 0,
-                'change_pct': float(cyb_index['涨跌幅']) if cyb_index is not None else 0,
-                'change': float(cyb_index['涨跌额']) if cyb_index is not None else 0
+        try:
+            # 获取指数数据
+            index_map = {
+                'sh': ['000001', 'sh000001', 'sh.000001', '上证指数'],
+                'sz': ['399001', 'sz399001', 'sz.399001', '深证成指'],
+                'cyb': ['399006', 'sz399006', 'sz.399006', '创业板指']
             }
-        }
-        
-        # 获取行业板块数据
-        try:
-            print("开始获取行业板块数据...")
-            industry_df = ak.stock_board_industry_name_em()
-            print(f"获取到行业板块数据: {len(industry_df)} 条")
-            print("行业板块数据列名:", industry_df.columns.tolist())
             
+            indices = {}
+            
+            # 使用新浪接口获取指数数据
+            try:
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    df = pool.submit(ak.stock_zh_index_spot_sina).result()
+                
+                # 确保代码列是字符串类型
+                df['代码'] = df['代码'].astype(str)
+                
+                # 遍历每个指数
+                for name, code_list in index_map.items():
+                    found = False
+                    for code in code_list:
+                        try:
+                            # 尝试通过代码或名称匹配
+                            row = df[(df['代码'] == code) | (df['名称'] == code)]
+                            if not row.empty:
+                                row = row.iloc[0]
+                                indices[name] = {
+                                    'current': float(row['最新价']),
+                                    'change_pct': float(row['涨跌幅']),
+                                    'change': float(row['涨跌额'])
+                                }
+                                found = True
+                                break
+                        except Exception as e:
+                            logger.error(f"处理{name}指数数据失败: {str(e)}")
+                    
+                    if not found:
+                        logger.error(f"未找到{name}指数数据")
+                        indices[name] = {
+                            'current': 0,
+                            'change_pct': 0,
+                            'change': 0
+                        }
+            except Exception as e:
+                logger.error(f"获取指数数据失败: {str(e)}")
+                for name in index_map.keys():
+                    indices[name] = {
+                        'current': 0,
+                        'change_pct': 0,
+                        'change': 0
+                    }
+        
+            # 获取行业板块数据
             industries = []
-            for _, row in industry_df.head(10).iterrows():
-                industries.append({
-                    'name': row['板块名称'],
-                    'change_pct': float(row['涨跌幅'])
-                })
-            print(f"处理后的行业板块数据: {industries}")
-        except Exception as e:
-            print(f"获取行业板块数据失败: {str(e)}")
-            app.logger.error(f"获取行业板块数据失败: {str(e)}")
-            industries = []
+            try:
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    df = pool.submit(ak.stock_board_industry_name_em).result()
+                
+                for _, row in df.head(5).iterrows():
+                    industries.append({
+                        'name': row['板块名称'],
+                        'change_pct': float(row['涨跌幅'])
+                    })
+            except Exception as e:
+                logger.error(f"获取行业板块数据失败: {str(e)}")
+                industries = []
         
-        # 获取涨幅榜和跌幅榜
-        try:
-            print("开始获取涨跌幅榜数据...")
-            stock_df = ak.stock_zh_a_spot_em()
-            print(f"获取到股票数据: {len(stock_df)} 条")
-            print("股票数据列名:", stock_df.columns.tolist())
-            
-            # 涨幅榜
+            # 获取涨幅榜数据
             gainers = []
-            for _, row in stock_df.nlargest(5, '涨跌幅').iterrows():
-                gainers.append({
-                    'code': row['代码'],
-                    'name': row['名称'],
-                    'price': float(row['最新价']),
-                    'change_pct': float(row['涨跌幅'])
-                })
-            print(f"涨幅榜数据: {gainers}")
+            try:
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    df = pool.submit(ak.stock_zh_a_spot_em).result()
+                
+                for _, row in df.nlargest(5, '涨跌幅').iterrows():
+                    gainers.append({
+                        'name': row['名称'],
+                        'price': float(row['最新价']),
+                        'change_pct': float(row['涨跌幅'])
+                    })
+            except Exception as e:
+                logger.error(f"获取涨幅榜数据失败: {str(e)}")
+                gainers = []
             
-            # 跌幅榜
+            # 获取跌幅榜数据
             losers = []
-            for _, row in stock_df.nsmallest(5, '涨跌幅').iterrows():
-                losers.append({
-                    'code': row['代码'],
-                    'name': row['名称'],
-                    'price': float(row['最新价']),
-                    'change_pct': float(row['涨跌幅'])
-                })
-            print(f"跌幅榜数据: {losers}")
-        except Exception as e:
-            print(f"获取涨跌幅榜数据失败: {str(e)}")
-            app.logger.error(f"获取涨跌幅榜数据失败: {str(e)}")
-            gainers = []
-            losers = []
+            try:
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    df = pool.submit(ak.stock_zh_a_spot_em).result()
+                
+                for _, row in df.nsmallest(5, '涨跌幅').iterrows():
+                    losers.append({
+                        'name': row['名称'],
+                        'price': float(row['最新价']),
+                        'change_pct': float(row['涨跌幅'])
+                    })
+            except Exception as e:
+                logger.error(f"获取跌幅榜数据失败: {str(e)}")
+                losers = []
         
-        # 获取指数历史数据用于走势图
-        try:
-            print("开始获取指数历史数据...")
-            end_date = datetime.now().strftime("%Y%m%d")
-            start_date = (datetime.now() - timedelta(days=30)).strftime("%Y%m%d")
-            
-            sh_hist = ak.stock_zh_index_daily(symbol="sh000001")
-            sz_hist = ak.stock_zh_index_daily(symbol="sz399001")
-            cyb_hist = ak.stock_zh_index_daily(symbol="sz399006")
-            
-            print(f"获取到上证指数历史数据: {len(sh_hist)} 条")
-            print(f"获取到深证成指历史数据: {len(sz_hist)} 条")
-            print(f"获取到创业板指历史数据: {len(cyb_hist)} 条")
-            
-            # 处理数据用于图表显示
-            trend_data = {
-                'dates': sh_hist['date'].tolist(),
-                'sh_values': sh_hist['close'].tolist(),
-                'sz_values': sz_hist['close'].tolist(),
-                'cyb_values': cyb_hist['close'].tolist()
-            }
-            print(f"处理后的走势图数据: {trend_data}")
-        except Exception as e:
-            print(f"获取指数历史数据失败: {str(e)}")
-            app.logger.error(f"获取指数历史数据失败: {str(e)}")
+            # 获取趋势数据
             trend_data = {
                 'dates': [],
-                'sh_values': [],
-                'sz_values': [],
-                'cyb_values': []
+                'sh': [],
+                'sz': [],
+                'cyb': []
             }
+            
+            try:
+                # 获取最近30天的数据
+                end_date = datetime.now()
+                start_date = end_date - timedelta(days=30)
+                
+                for name, code_list in index_map.items():
+                    try:
+                        code = code_list[0]  # 使用第一个代码
+                        with concurrent.futures.ThreadPoolExecutor() as pool:
+                            df = pool.submit(ak.stock_zh_index_daily_em, symbol=code).result()
+                        if not df.empty:
+                            df = df[(df['date'] >= start_date.strftime('%Y-%m-%d')) & 
+                                   (df['date'] <= end_date.strftime('%Y-%m-%d'))]
+                            
+                            if name == 'sh':
+                                trend_data['dates'] = df['date'].tolist()
+                            trend_data[name] = df['close'].tolist()
+                    except Exception as e:
+                        logger.error(f"获取{name}趋势数据失败: {str(e)}")
+                        trend_data[name] = []
+            except Exception as e:
+                logger.error(f"获取趋势数据失败: {str(e)}")
+
+            # 更新缓存
+            dashboard_cache['data'] = {
+                'indices': indices,
+                'industries': industries,
+                'gainers': gainers,
+                'losers': losers,
+                'trend_data': trend_data,
+                'last_updated': get_beijing_time().strftime('%Y-%m-%d %H:%M:%S')  # 添加最后更新时间（北京时间）
+            }
+            dashboard_cache['timestamp'] = current_time
+            print("更新首页数据缓存")
+            
+        except Exception as e:
+            logger.error(f"获取首页数据失败: {str(e)}")
+            if dashboard_cache['data'] is not None:
+                print("使用过期缓存数据")
+    else:
+        print("使用有效的缓存数据，跳过更新")
+                
+    return dashboard_cache['data']
+
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    try:
+        # 检查是否从管理后台返回前台
+        from_admin = session.pop('from_admin', False)
         
-        print("所有数据获取完成，准备渲染模板...")
-        return render_template('dashboard.html', 
-                             indices=indices,
-                             industries=industries,
-                             gainers=gainers,
-                             losers=losers,
-                             trend_data=trend_data)
-                             
+        # 如果是从管理后台返回，确保使用现有缓存不刷新
+        force_refresh = False
+        if from_admin:
+            print("从管理后台返回前台，使用现有缓存")
+        
+        data = get_dashboard_data(force_refresh=force_refresh)
+        
+        # 已经登录的用户，每次进入dashboard时记录当前时间
+        # 这样可以跟踪用户活跃状态，但不用每次都刷新数据
+        if current_user.is_authenticated:
+            # 仅更新用户会话，不刷新数据
+            session['last_dashboard_visit'] = int(time.time())
+        
+        if data is None:
+            flash('获取数据失败，请稍后重试', 'error')
+            # 返回默认的空数据结构
+            return render_template('dashboard.html', 
+                                 indices={
+                                     'sh': {'current': 0, 'change_pct': 0, 'change': 0},
+                                     'sz': {'current': 0, 'change_pct': 0, 'change': 0},
+                                     'cyb': {'current': 0, 'change_pct': 0, 'change': 0}
+                                 },
+                                 industries=[],
+                                 gainers=[],
+                                 losers=[],
+                                 trend_data={'dates': [], 'sh': [], 'sz': [], 'cyb': []},
+                                 last_updated="未知")
+        
+        # 正常返回数据
+        return render_template('dashboard.html',
+                             indices=data['indices'],
+                             industries=data['industries'],
+                             gainers=data['gainers'],
+                             losers=data['losers'],
+                             trend_data=data['trend_data'],
+                             last_updated=data.get('last_updated', '未知'))
     except Exception as e:
-        print(f"仪表盘数据获取失败: {str(e)}")
-        app.logger.error(f"仪表盘数据获取失败: {str(e)}")
-        flash('获取市场数据失败，请稍后重试', 'error')
+        logger.error(f"获取首页数据失败: {str(e)}")
+        flash('获取数据失败，请稍后重试', 'error')
+        # 返回默认的空数据结构
         return render_template('dashboard.html',
                              indices={
-                                 'sh_index': {'name': '上证指数', 'current': 0, 'change_pct': 0, 'change': 0},
-                                 'sz_index': {'name': '深证成指', 'current': 0, 'change_pct': 0, 'change': 0},
-                                 'cyb_index': {'name': '创业板指', 'current': 0, 'change_pct': 0, 'change': 0}
+                                 'sh': {'current': 0, 'change_pct': 0, 'change': 0},
+                                 'sz': {'current': 0, 'change_pct': 0, 'change': 0},
+                                 'cyb': {'current': 0, 'change_pct': 0, 'change': 0}
                              },
                              industries=[],
                              gainers=[],
                              losers=[],
-                             trend_data={'dates': [], 'sh_values': [], 'sz_values': [], 'cyb_values': []})
+                             trend_data={'dates': [], 'sh': [], 'sz': [], 'cyb': []},
+                             last_updated="未知")
+
+@app.route('/refresh_dashboard')
+@login_required
+def refresh_dashboard():
+    """强制刷新首页数据"""
+    try:
+        get_dashboard_data(force_refresh=True)
+        flash('数据已刷新', 'success')
+    except Exception as e:
+        logger.error(f"刷新首页数据失败: {str(e)}")
+        flash('刷新数据失败，请稍后重试', 'danger')
+    
+    return redirect(url_for('dashboard'))
 
 @app.route('/stocks')
+@login_required
 def stocks():
     """显示用户添加的股票列表"""
-    portfolio = load_portfolio()
+    portfolio = load_portfolio(current_user.id)
     
     # 获取最新行情数据
     if portfolio:
@@ -409,7 +800,7 @@ def stocks():
                             stock['change_amount'] = float(match.iloc[0]['涨跌额'])
                             stock['volume'] = float(match.iloc[0]['成交量'])
                             stock['turnover'] = float(match.iloc[0]['换手率']) if '换手率' in match.iloc[0] else 0
-                            stock['last_update'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                            stock['last_update'] = get_beijing_time().strftime('%Y-%m-%d %H:%M:%S')
                             
                             print(f"刷新时使用技术指标计算评分: {stock_code}, 评分: {analysis_result['score']}")
                             
@@ -435,7 +826,7 @@ def stocks():
                     stock['change_amount'] = float(match.iloc[0]['涨跌额'])
                     stock['volume'] = float(match.iloc[0]['成交量'])
                     stock['turnover'] = float(match.iloc[0]['换手率']) if '换手率' in match.iloc[0] else 0
-                    stock['last_update'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    stock['last_update'] = get_beijing_time().strftime('%Y-%m-%d %H:%M:%S')
                     
                     # 计算评分与投资建议（使用简化方法）
                     result = calculate_stock_score(stock)
@@ -457,11 +848,12 @@ def stocks():
                         print(f"刷新时飞沃科技的简化评分: {result['score']}")
                         print(f"飞沃科技的数据: {stock}")
             
-            save_portfolio(portfolio)
+            save_portfolio(current_user.id, portfolio)
     
     return render_template('stocks.html', stocks=portfolio)
 
 @app.route('/add_stock', methods=['GET', 'POST'])
+@login_required
 def add_stock():
     """添加股票到投资组合"""
     if request.method == 'POST':
@@ -493,7 +885,7 @@ def add_stock():
                 "change_amount": float(stock_match.iloc[0]['涨跌额']),
                 "volume": float(stock_match.iloc[0]['成交量']),
                 "turnover": float(stock_match.iloc[0]['换手率']) if '换手率' in stock_match.iloc[0] else 0,
-                "last_update": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                "last_update": get_beijing_time().strftime('%Y-%m-%d %H:%M:%S')
             }
             
             # 计算股票评分和投资建议
@@ -560,22 +952,18 @@ def add_stock():
                 stock_info['macd_signal'] = result['macd_signal']
                 stock_info['volume_trend'] = result['volume_trend']
             
-            # 添加到投资组合
-            portfolio = load_portfolio()
+            # 检查股票是否已存在于投资组合中
+            existing = UserPortfolio.query.filter_by(user_id=current_user.id, symbol=stock_code).first()
+            if existing:
+                return render_template('add_stock.html', error=f'股票 {stock_code} 已在投资组合中')
             
-            # 检查是否已经存在
-            exists = False
-            for s in portfolio:
-                if s['symbol'] == stock_code:
-                    exists = True
-                    break
-            
-            if not exists:
-                portfolio.append(stock_info)
-                save_portfolio(portfolio)
+            # 添加到用户投资组合
+            success = add_stock_to_portfolio(current_user.id, stock_info)
+            if success:
+                flash(f'已添加股票 {stock_info["name"]}', 'success')
                 return redirect(url_for('stocks'))
             else:
-                return render_template('add_stock.html', error=f'股票 {stock_code} 已在投资组合中')
+                return render_template('add_stock.html', error=f'添加股票失败')
                 
         except Exception as e:
             return render_template('add_stock.html', error=f'添加股票失败: {str(e)}')
@@ -583,17 +971,20 @@ def add_stock():
     return render_template('add_stock.html')
 
 @app.route('/remove_stock/<symbol>')
+@login_required
 def remove_stock(symbol):
     """从投资组合中删除股票"""
-    portfolio = load_portfolio()
-    portfolio = [s for s in portfolio if s['symbol'] != symbol]
-    save_portfolio(portfolio)
+    if remove_stock_from_portfolio(current_user.id, symbol):
+        flash(f'已删除股票 {symbol}', 'success')
+    else:
+        flash(f'股票 {symbol} 不存在', 'danger')
     return redirect(url_for('stocks'))
 
 @app.route('/refresh_stocks')
+@login_required
 def refresh_stocks():
     """刷新股票数据"""
-    portfolio = load_portfolio()
+    portfolio = load_portfolio(current_user.id)
     
     if portfolio:
         # 清除缓存，强制重新获取最新数据
@@ -668,7 +1059,7 @@ def refresh_stocks():
                             stock['change_amount'] = float(match.iloc[0]['涨跌额'])
                             stock['volume'] = float(match.iloc[0]['成交量'])
                             stock['turnover'] = float(match.iloc[0]['换手率']) if '换手率' in match.iloc[0] else 0
-                            stock['last_update'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                            stock['last_update'] = get_beijing_time().strftime('%Y-%m-%d %H:%M:%S')
                             
                             print(f"刷新时使用技术指标计算评分: {stock_code}, 评分: {analysis_result['score']}")
                             
@@ -694,7 +1085,7 @@ def refresh_stocks():
                     stock['change_amount'] = float(match.iloc[0]['涨跌额'])
                     stock['volume'] = float(match.iloc[0]['成交量'])
                     stock['turnover'] = float(match.iloc[0]['换手率']) if '换手率' in match.iloc[0] else 0
-                    stock['last_update'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    stock['last_update'] = get_beijing_time().strftime('%Y-%m-%d %H:%M:%S')
                     
                     # 计算评分与投资建议（使用简化方法）
                     result = calculate_stock_score(stock)
@@ -716,11 +1107,14 @@ def refresh_stocks():
                         print(f"刷新时飞沃科技的简化评分: {result['score']}")
                         print(f"飞沃科技的数据: {stock}")
             
-            save_portfolio(portfolio)
+            # 保存更新后的投资组合
+            save_portfolio(current_user.id, portfolio)
+            flash('股票数据已刷新', 'success')
     
     return redirect(url_for('stocks'))
 
 @app.route('/analysis/<symbol>')
+@login_required
 def analysis(symbol):
     max_retries = 3
     retry_delay = 5
@@ -800,7 +1194,7 @@ def analysis(symbol):
             print("股票基本信息:", stock_info)
             
             # 获取最近180天的日线数据以计算技术指标
-            end_date = datetime.now()
+            end_date = get_beijing_time()
             start_date = end_date - timedelta(days=180)
             
             daily_data = ak.stock_zh_a_hist(
@@ -937,7 +1331,7 @@ def analysis(symbol):
                         "recommendation": "建议买入"
                     },
                     "daily_data": [{
-                        "trade_date": end_date.strftime('%Y%m%d'),
+                        "trade_date": get_beijing_time().strftime('%Y%m%d'),
                         "open": 10.0,
                         "high": 11.0,
                         "low": 9.0,
@@ -946,7 +1340,7 @@ def analysis(symbol):
                         "amount": 10500000
                     }],
                     "fina_indicator": [{
-                        "end_date": end_date.strftime('%Y%m%d'),
+                        "end_date": get_beijing_time().strftime('%Y%m%d'),
                         "basic_eps": 0.5,
                         "bps": 5.0,
                         "roe": 10.0,
@@ -1097,6 +1491,186 @@ def analyze_indicators(df):
             "score": 50,
             "recommendation": "数据不足"
         }
+
+# 确保管理员用户存在
+def ensure_admin_user():
+    """确保系统中有一个admin管理员用户"""
+    with app.app_context():
+        admin = User.query.filter_by(username='admin').first()
+        if admin:
+            # 如果admin用户存在但不是管理员，则升级为管理员
+            if not admin.is_admin:
+                admin.is_admin = True
+                db.session.commit()
+                print("已将admin用户设置为管理员")
+        else:
+            # 如果admin用户不存在，则创建一个
+            admin = User(
+                username='admin',
+                email='admin@example.com',
+                is_admin=True
+            )
+            admin.set_password('admin123')  # 设置默认密码
+            db.session.add(admin)
+            db.session.commit()
+            print("已创建admin管理员用户，默认密码：admin123")
+
+# 在应用启动时调用
+with app.app_context():
+    db.create_all()
+    ensure_admin_user()
+
+# 管理员路由
+@app.route('/admin')
+@login_required
+def admin_dashboard():
+    """管理员控制台首页"""
+    if not current_user.is_admin:
+        flash('您没有管理员权限', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # 获取统计数据
+    stats = {
+        'users_count': User.query.count(),
+        'active_users_count': User.query.filter_by(is_active=True).count(),
+        'admins_count': User.query.filter_by(is_admin=True).count(),
+        'login_count': LoginLog.query.filter_by(status='success').count(),
+        'failed_login_count': LoginLog.query.filter_by(status='failed').count()
+    }
+    
+    # 获取最近登录记录
+    recent_logins = LoginLog.query.order_by(LoginLog.login_time.desc()).limit(10).all()
+    
+    # 标记用户在管理后台
+    session['from_admin'] = True
+    
+    return render_template('admin/dashboard.html', stats=stats, recent_logins=recent_logins)
+
+@app.route('/admin/users')
+@login_required
+def admin_users():
+    """用户管理页面"""
+    if not current_user.is_admin:
+        flash('您没有管理员权限', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # 标记用户在管理后台
+    session['from_admin'] = True
+    
+    users = User.query.all()
+    return render_template('admin/users.html', users=users)
+
+@app.route('/admin/users/edit/<int:id>', methods=['GET', 'POST'])
+@login_required
+def admin_edit_user(id):
+    """编辑用户信息"""
+    if not current_user.is_admin:
+        flash('您没有管理员权限', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # 标记用户在管理后台
+    session['from_admin'] = True
+    
+    user = User.query.get_or_404(id)
+    
+    if request.method == 'POST':
+        user.username = request.form.get('username')
+        user.email = request.form.get('email')
+        
+        # 如果提供了新密码
+        new_password = request.form.get('new_password')
+        if new_password:
+            user.set_password(new_password)
+        
+        user.is_active = 'is_active' in request.form
+        user.is_admin = 'is_admin' in request.form
+        
+        db.session.commit()
+        flash('用户信息已更新', 'success')
+        return redirect(url_for('admin_users'))
+    
+    return render_template('admin/edit_user.html', user=user, LoginLog=LoginLog)
+
+@app.route('/admin/users/delete/<int:id>', methods=['POST'])
+@login_required
+def admin_delete_user(id):
+    """删除用户"""
+    if not current_user.is_admin:
+        flash('您没有管理员权限', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    if id == current_user.id:
+        flash('不能删除当前登录的用户', 'danger')
+        return redirect(url_for('admin_users'))
+    
+    user = User.query.get_or_404(id)
+    db.session.delete(user)
+    db.session.commit()
+    
+    flash(f'用户 {user.username} 已删除', 'success')
+    return redirect(url_for('admin_users'))
+
+@app.route('/admin/login-logs')
+@login_required
+def admin_login_logs():
+    """登录日志页面"""
+    if not current_user.is_admin:
+        flash('您没有管理员权限', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # 标记用户在管理后台
+    session['from_admin'] = True
+    
+    page = request.args.get('page', 1, type=int)
+    logs = LoginLog.query.order_by(LoginLog.login_time.desc()).paginate(
+        page=page, per_page=20, error_out=False
+    )
+    
+    return render_template('admin/login_logs.html', logs=logs)
+
+@app.route('/admin/users/add', methods=['GET', 'POST'])
+@login_required
+def admin_add_user():
+    """管理员添加新用户"""
+    if not current_user.is_admin:
+        flash('您没有管理员权限', 'danger')
+        return redirect(url_for('dashboard'))
+    
+    # 标记用户在管理后台
+    session['from_admin'] = True
+    
+    if request.method == 'POST':
+        username = request.form.get('username')
+        email = request.form.get('email')
+        password = request.form.get('password')
+        is_active = 'is_active' in request.form
+        is_admin = 'is_admin' in request.form
+        
+        # 检查用户名和邮箱是否已存在
+        if User.query.filter_by(username=username).first():
+            flash('用户名已存在', 'danger')
+            return render_template('admin/add_user.html')
+        
+        if User.query.filter_by(email=email).first():
+            flash('邮箱已存在', 'danger')
+            return render_template('admin/add_user.html')
+        
+        # 创建新用户
+        user = User(
+            username=username,
+            email=email,
+            is_active=is_active,
+            is_admin=is_admin
+        )
+        user.set_password(password)
+        
+        db.session.add(user)
+        db.session.commit()
+        
+        flash(f'用户 {username} 已创建成功', 'success')
+        return redirect(url_for('admin_users'))
+    
+    return render_template('admin/add_user.html')
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000) 

@@ -1,28 +1,226 @@
 /* 自定义CSS样式 */
 
+:root {
+    --primary-color: #1677ff;
+    --secondary-color: #4096ff;
+    --success-color: #52c41a;
+    --warning-color: #faad14;
+    --danger-color: #ff4d4f;
+    --text-color: #333;
+    --text-secondary: #666;
+    --border-color: #e8e8e8;
+    --bg-color: #f5f5f5;
+    --card-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    --transition-speed: 0.3s;
+}
+
 body {
-    background-color: #f8f9fa;
-    font-family: "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    line-height: 1.6;
+}
+
+/* 导航栏样式 */
+.navbar {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)) !important;
+}
+
+.navbar-brand {
+    font-weight: 600;
+    font-size: 1.25rem;
+    display: flex;
+    align-items: center;
 }
 
 .navbar-brand img {
     margin-right: 8px;
+    transition: transform var(--transition-speed);
 }
 
+.navbar-brand:hover img {
+    transform: scale(1.05);
+}
+
+.nav-link {
+    font-weight: 500;
+    padding: 0.5rem 1rem !important;
+    transition: all var(--transition-speed);
+}
+
+.nav-link:hover {
+    transform: translateY(-1px);
+}
+
+/* 卡片样式 */
 .card {
-    margin-bottom: 20px;
     border: none;
-    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    border-radius: 8px;
+    box-shadow: var(--card-shadow);
+    transition: transform var(--transition-speed);
 }
 
 .card:hover {
-    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
 }
 
-.card-title {
+/* 按钮样式 */
+.btn {
+    border-radius: 6px;
+    font-weight: 500;
+    padding: 0.5rem 1.25rem;
+    transition: all var(--transition-speed);
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #1677ff, #4096ff);
+    border: none;
+    padding: 0.75rem 1.5rem;
+    transition: all 0.3s ease;
+}
+
+.btn-primary:hover, 
+.btn-primary:focus {
+    background: linear-gradient(135deg, #0d6efd, #1677ff);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(13, 110, 253, 0.25);
+}
+
+/* 表单样式 */
+.form-control {
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    padding: 0.75rem 1rem;
+    transition: all var(--transition-speed);
+}
+
+.form-control:focus {
+    border-color: #1677ff;
+    box-shadow: 0 0 0 0.25rem rgba(22, 119, 255, 0.25);
+}
+
+/* 认证页面样式 */
+.auth-container {
+    min-height: calc(100vh - 200px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 0;
+}
+
+.auth-box {
+    background: white;
+    padding: 2rem;
+    border-radius: 12px;
+    box-shadow: var(--card-shadow);
+    width: 100%;
+    max-width: 400px;
+}
+
+.auth-box h2 {
+    text-align: center;
+    margin-bottom: 2rem;
+    color: var(--primary-color);
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-group label {
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.error {
+    color: var(--danger-color);
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+}
+
+.auth-links {
+    text-align: center;
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.auth-links a {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.auth-links a:hover {
+    text-decoration: underline;
+}
+
+/* 表格样式 */
+.table {
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: var(--card-shadow);
+}
+
+.table thead th {
+    background-color: #fafafa;
+    border-bottom: 2px solid var(--border-color);
     font-weight: 600;
-    color: #343a40;
+}
+
+/* 页脚样式 */
+.footer {
+    background: white !important;
+    border-top: 1px solid var(--border-color);
+    padding: 1.5rem 0;
+    margin-top: 3rem;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .auth-box {
+        margin: 1rem;
+        padding: 1.5rem;
+    }
+    
+    .navbar-brand {
+        font-size: 1.1rem;
+    }
+    
+    .nav-link {
+        padding: 0.5rem !important;
+    }
+}
+
+/* 巨硬工作室品牌相关样式 */
+.brand-gradient {
+    background: linear-gradient(135deg, #1677ff, #4096ff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.brand-logo {
+    width: 30px;
+    height: 30px;
+    object-fit: contain;
+}
+
+.brand-text {
+    font-family: 'Microsoft YaHei', sans-serif;
+    font-weight: 600;
+}
+
+/* 仪表盘特殊样式 */
+.dashboard-card {
+    height: 100%;
+    min-height: 180px;
+}
+
+/* 分析页面特殊样式 */
+.analysis-container .tab-content {
+    padding: 20px 0;
 }
 
 .bg-primary {
@@ -64,13 +262,41 @@ body {
     font-size: 0.75rem;
 }
 
-/* 仪表盘特殊样式 */
-.dashboard-card {
-    height: 100%;
-    min-height: 180px;
+/* 登录页面样式增强 */
+.form-floating > .form-control,
+.form-floating > .form-select {
+    height: calc(3.5rem + 2px);
+    padding: 1rem 0.75rem;
 }
 
-/* 分析页面特殊样式 */
-.analysis-container .tab-content {
-    padding: 20px 0;
+.form-floating > label {
+    padding: 1rem 0.75rem;
+}
+
+.form-floating > .form-control:focus ~ label,
+.form-floating > .form-control:not(:placeholder-shown) ~ label,
+.form-floating > .form-select ~ label {
+    opacity: 0.65;
+    transform: scale(0.85) translateY(-0.5rem) translateX(0.15rem);
+}
+
+.card.shadow-lg {
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1) !important;
+    transition: all 0.3s ease;
+}
+
+.card.shadow-lg:hover {
+    box-shadow: 0 15px 30px rgba(0, 0, 0, 0.12) !important;
+    transform: translateY(-3px);
+}
+
+/* 增强表单浮动标签动画 */
+.form-floating > label {
+    transition: all 0.25s ease-in-out;
+}
+
+/* 登录页面背景 */
+.login-page-bg {
+    background: linear-gradient(135deg, #f5f7fa, #eef2f5);
+    min-height: 100vh;
 } 

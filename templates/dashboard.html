@@ -1,193 +1,207 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
 
 {% block content %}
-<!-- 风险提示 -->
-<div class="alert alert-warning alert-dismissible fade show" role="alert">
-    <strong>风险提示：</strong> 本网站提供的所有分析仅供参考，投资有风险，入市需谨慎。股市有风险，投资需谨慎。
-    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-</div>
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>市场概览</h2>
+        <div>
+            <small class="text-muted me-3">最后更新: {{ last_updated }}</small>
+            <a href="{{ url_for('refresh_dashboard') }}" class="btn btn-primary btn-sm">
+                <i class="fas fa-sync-alt"></i> 刷新数据
+            </a>
+        </div>
+    </div>
+    
+    <!-- 指数数据 -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">上证指数</h5>
+                    <h3 class="card-text {% if indices.sh.change_pct >= 0 %}text-danger{% else %}text-success{% endif %}">
+                        {{ "%.2f"|format(indices.sh.current) }}
+                        <small>({{ "%.2f"|format(indices.sh.change_pct) }}%)</small>
+                    </h3>
+                    <p class="card-text">
+                        涨跌额: {{ "%.2f"|format(indices.sh.change) }}
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">深证成指</h5>
+                    <h3 class="card-text {% if indices.sz.change_pct >= 0 %}text-danger{% else %}text-success{% endif %}">
+                        {{ "%.2f"|format(indices.sz.current) }}
+                        <small>({{ "%.2f"|format(indices.sz.change_pct) }}%)</small>
+                    </h3>
+                    <p class="card-text">
+                        涨跌额: {{ "%.2f"|format(indices.sz.change) }}
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">创业板指</h5>
+                    <h3 class="card-text {% if indices.cyb.change_pct >= 0 %}text-danger{% else %}text-success{% endif %}">
+                        {{ "%.2f"|format(indices.cyb.current) }}
+                        <small>({{ "%.2f"|format(indices.cyb.change_pct) }}%)</small>
+                    </h3>
+                    <p class="card-text">
+                        涨跌额: {{ "%.2f"|format(indices.cyb.change) }}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
 
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card shadow-sm">
-            <div class="card-body">
-                <h2 class="card-title">市场概览</h2>
-                <div class="row">
-                    <div class="col-md-4">
-                        <div class="card {% if indices.sh_index.change_pct > 0 %}bg-danger{% elif indices.sh_index.change_pct < 0 %}bg-success{% else %}bg-primary{% endif %} text-white mb-3">
-                            <div class="card-body">
-                                <h5 class="card-title">{{ indices.sh_index.name }}</h5>
-                                <h3>{{ indices.sh_index.current|round(2) }} 
-                                    <small class="{% if indices.sh_index.change_pct > 0 %}text-white{% elif indices.sh_index.change_pct < 0 %}text-white{% endif %}">
-                                        {{ indices.sh_index.change|round(2) }} ({{ indices.sh_index.change_pct|round(2) }}%)
-                                    </small>
-                                </h3>
+    <!-- 行业板块和涨跌幅榜 -->
+    <div class="row mb-4">
+        <!-- 行业板块 -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">行业板块</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>板块名称</th>
+                                    <th>涨跌幅</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for industry in industries %}
+                                <tr>
+                                    <td>{{ industry.name }}</td>
+                                    <td class="{% if industry.change_pct >= 0 %}text-danger{% else %}text-success{% endif %}">
+                                        {{ "%.2f"|format(industry.change_pct) }}%
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 涨跌幅榜 -->
+        <div class="col-md-8">
+            <div class="row">
+                <!-- 涨幅榜 -->
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">涨幅榜</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>股票名称</th>
+                                            <th>最新价</th>
+                                            <th>涨跌幅</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for stock in gainers %}
+                                        <tr>
+                                            <td>{{ stock.name }}</td>
+                                            <td>{{ "%.2f"|format(stock.price) }}</td>
+                                            <td class="text-danger">{{ "%.2f"|format(stock.change_pct) }}%</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-4">
-                        <div class="card {% if indices.sz_index.change_pct > 0 %}bg-danger{% elif indices.sz_index.change_pct < 0 %}bg-success{% else %}bg-info{% endif %} text-white mb-3">
-                            <div class="card-body">
-                                <h5 class="card-title">{{ indices.sz_index.name }}</h5>
-                                <h3>{{ indices.sz_index.current|round(2) }} 
-                                    <small class="{% if indices.sz_index.change_pct > 0 %}text-white{% elif indices.sz_index.change_pct < 0 %}text-white{% endif %}">
-                                        {{ indices.sz_index.change|round(2) }} ({{ indices.sz_index.change_pct|round(2) }}%)
-                                    </small>
-                                </h3>
+                </div>
+                <!-- 跌幅榜 -->
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">跌幅榜</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>股票名称</th>
+                                            <th>最新价</th>
+                                            <th>涨跌幅</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for stock in losers %}
+                                        <tr>
+                                            <td>{{ stock.name }}</td>
+                                            <td>{{ "%.2f"|format(stock.price) }}</td>
+                                            <td class="text-success">{{ "%.2f"|format(stock.change_pct) }}%</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-4">
-                        <div class="card {% if indices.cyb_index.change_pct > 0 %}bg-danger{% elif indices.cyb_index.change_pct < 0 %}bg-success{% else %}bg-secondary{% endif %} text-white mb-3">
-                            <div class="card-body">
-                                <h5 class="card-title">{{ indices.cyb_index.name }}</h5>
-                                <h3>{{ indices.cyb_index.current|round(2) }} 
-                                    <small class="{% if indices.cyb_index.change_pct > 0 %}text-white{% elif indices.cyb_index.change_pct < 0 %}text-white{% endif %}">
-                                        {{ indices.cyb_index.change|round(2) }} ({{ indices.cyb_index.change_pct|round(2) }}%)
-                                    </small>
-                                </h3>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>
     </div>
-</div>
 
-<div class="row mb-4">
-    <div class="col-md-8">
-        <div class="card shadow-sm">
-            <div class="card-body">
-                <h4 class="card-title">市场走势（近30日）</h4>
-                <canvas id="marketTrendChart" height="300"></canvas>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card shadow-sm">
-            <div class="card-body">
-                <h4 class="card-title">热门行业板块</h4>
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>板块名称</th>
-                                <th>涨跌幅</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for industry in industries %}
-                            <tr>
-                                <td>{{ industry.name }}</td>
-                                <td class="{% if industry.change_pct > 0 %}text-danger{% elif industry.change_pct < 0 %}text-success{% endif %}">
-                                    {{ industry.change_pct|round(2) }}%
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+    <!-- 趋势图 -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">指数趋势</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="trendChart"></canvas>
                 </div>
             </div>
         </div>
     </div>
 </div>
-
-<div class="row">
-    <div class="col-md-6">
-        <div class="card shadow-sm">
-            <div class="card-body">
-                <h4 class="card-title">涨幅榜</h4>
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>代码</th>
-                                <th>名称</th>
-                                <th>最新价</th>
-                                <th>涨跌幅</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for stock in gainers %}
-                            <tr>
-                                <td><a href="/analysis/{{ stock.code }}">{{ stock.code }}</a></td>
-                                <td>{{ stock.name }}</td>
-                                <td>{{ stock.price|round(2) }}</td>
-                                <td class="text-danger">+{{ stock.change_pct|round(2) }}%</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-6">
-        <div class="card shadow-sm">
-            <div class="card-body">
-                <h4 class="card-title">跌幅榜</h4>
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>代码</th>
-                                <th>名称</th>
-                                <th>最新价</th>
-                                <th>涨跌幅</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for stock in losers %}
-                            <tr>
-                                <td><a href="/analysis/{{ stock.code }}">{{ stock.code }}</a></td>
-                                <td>{{ stock.name }}</td>
-                                <td>{{ stock.price|round(2) }}</td>
-                                <td class="text-success">{{ stock.change_pct|round(2) }}%</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-{% endblock %}
 
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-    // 市场走势图
-    const marketTrendCtx = document.getElementById('marketTrendChart').getContext('2d');
-    const marketTrendChart = new Chart(marketTrendCtx, {
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('trendChart').getContext('2d');
+    const trendData = {{ trend_data|tojson }};
+    
+    new Chart(ctx, {
         type: 'line',
         data: {
-            labels: {{ trend_data.dates|tojson }},
+            labels: trendData.dates,
             datasets: [
                 {
                     label: '上证指数',
-                    data: {{ trend_data.sh_values|tojson }},
-                    borderColor: 'rgba(255, 99, 132, 1)',
-                    backgroundColor: 'rgba(255, 99, 132, 0.1)',
-                    tension: 0.4,
-                    fill: true
+                    data: trendData.sh,
+                    borderColor: 'rgb(255, 99, 132)',
+                    tension: 0.1
                 },
                 {
                     label: '深证成指',
-                    data: {{ trend_data.sz_values|tojson }},
-                    borderColor: 'rgba(54, 162, 235, 1)',
-                    backgroundColor: 'rgba(54, 162, 235, 0.1)',
-                    tension: 0.4,
-                    fill: true
+                    data: trendData.sz,
+                    borderColor: 'rgb(54, 162, 235)',
+                    tension: 0.1
                 },
                 {
                     label: '创业板指',
-                    data: {{ trend_data.cyb_values|tojson }},
-                    borderColor: 'rgba(75, 192, 192, 1)',
-                    backgroundColor: 'rgba(75, 192, 192, 0.1)',
-                    tension: 0.4,
-                    fill: true
+                    data: trendData.cyb,
+                    borderColor: 'rgb(75, 192, 192)',
+                    tension: 0.1
                 }
             ]
         },
@@ -196,11 +210,7 @@
             plugins: {
                 title: {
                     display: true,
-                    text: '指数近30日走势'
-                },
-                tooltip: {
-                    mode: 'index',
-                    intersect: false
+                    text: '近30天指数走势'
                 }
             },
             scales: {
@@ -210,5 +220,7 @@
             }
         }
     });
+});
 </script>
+{% endblock %}
 {% endblock %} 
